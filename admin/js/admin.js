@@ -4,6 +4,34 @@ const ADMIN_CREDENTIALS = {
     password: 'admin123'
 };
 
+// Connection check instance
+let connectionCheck;
+
+// Initialize admin app
+function initializeAdminApp() {
+    // Initialize connection check
+    connectionCheck = new ConnectionCheck();
+    connectionCheck.onConnectionRestored = () => {
+        // Re-initialize admin app when connection is restored
+        initializeAdminApp();
+    };
+
+    // Check initial connection
+    if (!navigator.onLine) {
+        connectionCheck.handleConnectionChange(false);
+        return;
+    }
+
+    // Initialize local storage
+    initializeLocalStorage();
+    
+    // Check authentication
+    checkAuth();
+    
+    // Initialize mobile menu
+    initializeMobileMenu();
+}
+
 // Check if admin is logged in
 function checkAuth() {
     const isLoggedIn = sessionStorage.getItem('adminLoggedIn');
@@ -122,11 +150,9 @@ function loadDashboardMetrics() {
     const products = JSON.parse(localStorage.getItem('products')) || [];
     const orders = JSON.parse(localStorage.getItem('orders')) || [];
     const users = JSON.parse(localStorage.getItem('users')) || [];
-
+    
     document.getElementById('total-products').textContent = products.length;
-    document.getElementById('active-orders').textContent = orders.filter(
-        order => ['pending', 'shipped'].includes(order.status)
-    ).length;
+    document.getElementById('active-orders').textContent = orders.filter(order => order.status === 'pending').length;
     document.getElementById('registered-users').textContent = users.length;
 }
 
@@ -1291,31 +1317,14 @@ function renderAdmin() {
     `;
 }
 
-// Initialize admin dashboard
+// Initialize the admin app when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize login form
-    const loginForm = document.getElementById('admin-login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleAdminLogin);
-    }
+    initializeAdminApp();
     
-    // Add logout functionality to the "Back to Store" button
-    const logoutBtn = document.querySelector('a[href="../index.html"]');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleLogout();
-            window.location.href = '../index.html';
-        });
-    }
-    
-    // Check authentication status
-    checkAuth();
-    
-    // Initialize dashboard if logged in
-    if (sessionStorage.getItem('adminLoggedIn') === 'true') {
-        initializeLocalStorage();
-        renderAdmin();
+    // Add event listener for admin login form
+    const adminLoginForm = document.getElementById('admin-login-form');
+    if (adminLoginForm) {
+        adminLoginForm.addEventListener('submit', handleAdminLogin);
     }
 });
 
@@ -1618,33 +1627,3 @@ function formatTimeAgo(date) {
     
     return date.toLocaleDateString();
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize login form
-    const loginForm = document.getElementById('admin-login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleAdminLogin);
-    }
-    
-    // Add logout functionality to the "Back to Store" button
-    const logoutBtn = document.querySelector('a[href="../index.html"]');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleLogout();
-            window.location.href = '../index.html';
-        });
-    }
-    
-    // Check authentication status
-    checkAuth();
-    
-    // Initialize mobile menu
-    initializeMobileMenu();
-    
-    // Initialize dashboard if logged in
-    if (sessionStorage.getItem('adminLoggedIn') === 'true') {
-        initializeLocalStorage();
-        renderAdmin();
-    }
-});

@@ -2,7 +2,6 @@
 let currentPage = 'home';
 let cart = [];
 let searchHistory = [];
-let wishlist = [];
 let selectedProduct = null;
 let selectedColor = null;
 let selectedSize = null;
@@ -10,8 +9,7 @@ let deliveryOption = 'standard';
 let searchTerm = '';
 let profileStats = {
     totalOrders: 0,
-    pendingOrders: 0,
-    wishlistItems: 0
+    pendingOrders: 0
 };
 
 // Real-time update interval (in milliseconds)
@@ -21,8 +19,24 @@ const UPDATE_INTERVAL = 5000;
 const app = document.getElementById('app');
 const splashScreen = document.getElementById('splash-screen');
 
+// Connection check instance
+let connectionCheck;
+
 // Initialize app with splash screen and auth check
 async function initializeApp() {
+    // Initialize connection check
+    connectionCheck = new ConnectionCheck();
+    connectionCheck.onConnectionRestored = () => {
+        // Re-initialize app when connection is restored
+        initializeApp();
+    };
+
+    // Check initial connection
+    if (!navigator.onLine) {
+        connectionCheck.handleConnectionChange(false);
+        return;
+    }
+
     // Initialize categories
     initializeCategories();
     
@@ -296,7 +310,7 @@ function renderBottomNav() {
     `;
 }
 
-// Update renderHome function to include notifications
+// Update renderHome function to remove wishlist
 function renderHome() {
     const products = JSON.parse(localStorage.getItem('products')) || [];
     const categories = JSON.parse(localStorage.getItem('categories')) || [];
@@ -316,12 +330,6 @@ function renderHome() {
                 <div class="flex items-center p-4">
                     <h1 class="text-xl font-bold flex-1">Home</h1>
                     <div class="flex items-center gap-4">
-                        <button onclick="navigate('wishlist')" class="relative">
-                            <i class="fas fa-heart text-gray-600"></i>
-                            ${wishlist.length > 0 ? `
-                                <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                            ` : ''}
-                        </button>
                         <button onclick="navigate('notifications')" class="relative">
                             <i class="fas fa-bell text-gray-600"></i>
                         </button>
@@ -374,10 +382,6 @@ function renderHome() {
                             <img src="${product.image}" 
                                  alt="${product.name}" 
                                  class="w-full h-40 object-contain p-4">
-                            <button onclick="event.stopPropagation(); toggleWishlist(${product.id})" 
-                                    class="absolute top-2 right-2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center">
-                                <i class="fas fa-heart ${wishlist.includes(product.id) ? 'text-red-500' : 'text-gray-300'}"></i>
-                            </button>
                         </div>
                         <div class="p-4">
                             <div class="flex justify-between items-center mb-2">
@@ -433,14 +437,6 @@ function renderProductDetail() {
                     <img src="${selectedProduct.image}" 
                          alt="${selectedProduct.name}" 
                          class="w-full h-72 object-contain p-4">
-                    <button onclick="toggleWishlist(${selectedProduct.id})" 
-                            class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
-                        <i class="fas fa-heart ${
-                            wishlist.includes(selectedProduct.id)
-                                ? 'text-red-500'
-                                : 'text-gray-300'
-                        } text-xl"></i>
-                    </button>
                 </div>
             </div>
 
@@ -670,12 +666,6 @@ function renderWishlist() {
                                 <img src="${product.image}" 
                                      alt="${product.name}" 
                                      class="w-full h-40 object-contain p-4">
-                                <button onclick="event.stopPropagation(); toggleWishlist(${
-                                    product.id
-                                })" 
-                                        class="absolute top-2 right-2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center">
-                                    <i class="fas fa-heart text-red-500"></i>
-                                </button>
                             </div>
                             <div class="p-4">
                                 <h3 class="font-medium mb-1 truncate">${
@@ -748,7 +738,6 @@ function renderProfile() {
     }
 
     const orders = JSON.parse(localStorage.getItem('orders')) || [];
-    const wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
     const userOrders = orders.filter(order => order.userId === currentUser.id);
 
     const profilePage = document.getElementById('profile-page');
@@ -767,7 +756,7 @@ function renderProfile() {
             </div>
 
             <div class="container mx-auto px-4 py-6">
-                ${renderUserInfo(userOrders, wishlist)}
+                ${renderUserInfo(userOrders)}
                 ${renderRecentOrders(userOrders)}
                 ${renderSavedAddresses()}
             </div>
@@ -784,7 +773,6 @@ function updateProfileStats() {
     if (!currentUser) return;
 
     const orders = JSON.parse(localStorage.getItem('orders')) || [];
-    const wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
     
     // Filter orders for current user
     const userOrders = orders.filter(order => order.userId === currentUser.id);
@@ -793,21 +781,19 @@ function updateProfileStats() {
     // Safely update DOM elements if they exist
     const totalOrdersEl = document.getElementById('total-orders');
     const pendingOrdersEl = document.getElementById('pending-orders');
-    const wishlistItemsEl = document.getElementById('wishlist-items');
     
     if (totalOrdersEl) totalOrdersEl.textContent = userOrders.length;
     if (pendingOrdersEl) pendingOrdersEl.textContent = pendingOrders.length;
-    if (wishlistItemsEl) wishlistItemsEl.textContent = wishlist.length;
 }
 
 // Add storage event listener for updates
 window.addEventListener('storage', (e) => {
-    if (e.key === 'orders' || e.key === 'wishlist') {
+    if (e.key === 'orders') {
         updateProfileStats();
     }
 });
 
-function renderUserInfo(userOrders, userWishlist) {
+function renderUserInfo(userOrders) {
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     if (!currentUser) return '';
 
@@ -835,10 +821,6 @@ function renderUserInfo(userOrders, userWishlist) {
                     <div class="bg-white p-4 rounded-lg shadow text-center">
                         <div class="text-xl font-bold" id="pending-orders">0</div>
                         <div class="text-gray-600">Pending Orders</div>
-                    </div>
-                    <div class="bg-white p-4 rounded-lg shadow text-center">
-                        <div class="text-xl font-bold" id="wishlist-items">0</div>
-                        <div class="text-gray-600">Wishlist Items</div>
                     </div>
                 </div>
 
