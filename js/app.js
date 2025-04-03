@@ -2,7 +2,6 @@
 let currentPage = 'home';
 let cart = [];
 let searchHistory = [];
-let wishlist = [];
 let selectedProduct = null;
 let selectedColor = null;
 let selectedSize = null;
@@ -10,8 +9,7 @@ let deliveryOption = 'standard';
 let searchTerm = '';
 let profileStats = {
     totalOrders: 0,
-    pendingOrders: 0,
-    wishlistItems: 0
+    pendingOrders: 0
 };
 
 // Real-time update interval (in milliseconds)
@@ -23,34 +21,68 @@ const splashScreen = document.getElementById('splash-screen');
 
 // Initialize app with splash screen and auth check
 async function initializeApp() {
-    // Initialize categories
-    initializeCategories();
-    
-    // Show splash screen
-    if (splashScreen) {
-        splashScreen.style.display = 'flex';
-    }
-    if (app) {
-        app.style.display = 'none';
-    }
+    try {
+        // Initialize data
+        initializeCategories();
+        initializeProducts();
+        initializeNotifications();
+        
+        // Initialize cart from localStorage
+        window.cart = JSON.parse(localStorage.getItem('cart')) || [];
+        
+        // Show splash screen
+        if (splashScreen) {
+            splashScreen.style.display = 'flex';
+        }
+        if (app) {
+            app.style.display = 'none';
+        }
 
-    // Load saved state
-    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+        // Load saved state
+        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
 
-    // Simulate loading time (2 seconds)
-    await new Promise(resolve => setTimeout(resolve, 2000));
+        // Simulate loading time (2 seconds)
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Hide splash screen and show app
-    if (splashScreen) {
-        splashScreen.classList.add('fade-out');
-        setTimeout(() => {
-            splashScreen.style.display = 'none';
-            if (app) {
-                app.style.display = 'block';
-                // Navigate to appropriate page
-                navigate(currentUser ? 'home' : 'login');
+        // Hide splash screen and show app
+        if (splashScreen) {
+            splashScreen.classList.add('fade-out');
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                if (app) {
+                    app.style.display = 'block';
+                    app.style.opacity = '1';
+                    
+                    document.querySelectorAll('.page').forEach(page => {
+                        page.style.display = 'none';
+                    });
+                    
+                    const initialPage = currentUser ? 'home' : 'login';
+                    const pageElement = document.getElementById(`${initialPage}-page`);
+                    if (pageElement) {
+                        pageElement.style.display = 'block';
+                        switch (initialPage) {
+                            case 'login':
+                                renderLogin();
+                                break;
+                            case 'home':
+                                renderHome();
+                                break;
+                        }
+                    }
+                }
+            }, 500);
+        }
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        if (app) {
+            app.style.display = 'block';
+            const loginPage = document.getElementById('login-page');
+            if (loginPage) {
+                loginPage.style.display = 'block';
+                renderLogin();
             }
-        }, 500);
+        }
     }
 }
 
@@ -65,15 +97,17 @@ function navigate(page, data = null) {
     currentPage = page;
     
     // Check authentication for protected routes
-    const protectedRoutes = ['profile', 'cart', 'wishlist', 'orders'];
+    const protectedRoutes = ['profile', 'cart', 'orders'];
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     
     if (protectedRoutes.includes(page) && !currentUser) {
         page = 'login';
     }
 
-    // Hide all pages
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    // Hide all pages first
+    document.querySelectorAll('.page').forEach(p => {
+        p.style.display = 'none';
+    });
     
     // Show selected page
     const pageElement = document.getElementById(`${page}-page`);
@@ -111,9 +145,6 @@ function navigate(page, data = null) {
         case 'product':
             renderProductDetail(data);
             break;
-        case 'wishlist':
-            renderWishlist();
-            break;
         case 'delivery':
             renderDelivery();
             break;
@@ -122,9 +153,6 @@ function navigate(page, data = null) {
             break;
         case 'signup':
             renderSignup();
-            break;
-        case 'notifications':
-            renderNotifications();
             break;
     }
 
@@ -162,12 +190,6 @@ function renderApp() {
             break;
         case 'product':
             renderProductDetail();
-            break;
-        case 'wishlist':
-            renderWishlist();
-            break;
-        case 'delivery':
-            renderDelivery();
             break;
         default:
             renderHome();
@@ -268,27 +290,27 @@ function filterByCategory(category) {
 // Update bottom navigation
 function renderBottomNav() {
     return `
-        <nav class="bottom-nav">
-            <a href="#" onclick="navigate('home')" class="flex flex-col items-center ${currentPage === 'home' ? 'text-green-600' : 'text-gray-600'}">
+        <nav class="bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t flex items-center justify-around px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] z-30">
+            <a href="#" onclick="navigate('home')" class="flex flex-col items-center py-2 px-4 ${currentPage === 'home' ? 'text-green-500' : 'text-gray-600'}">
                 <i class="fas fa-home text-xl mb-1"></i>
                 <span class="text-xs">Home</span>
             </a>
-            <a href="#" onclick="navigate('search')" class="flex flex-col items-center ${currentPage === 'search' ? 'text-green-600' : 'text-gray-600'}">
+            <a href="#" onclick="navigate('search')" class="flex flex-col items-center py-2 px-4 ${currentPage === 'search' ? 'text-green-500' : 'text-gray-600'}">
                 <i class="fas fa-search text-xl mb-1"></i>
                 <span class="text-xs">Search</span>
             </a>
-            <a href="#" onclick="navigate('cart')" class="flex flex-col items-center ${currentPage === 'cart' ? 'text-green-600' : 'text-gray-600'}">
+            <a href="#" onclick="navigate('cart')" class="flex flex-col items-center py-2 px-4 ${currentPage === 'cart' ? 'text-green-500' : 'text-gray-600'}">
                 <div class="relative">
                     <i class="fas fa-shopping-cart text-xl mb-1"></i>
                     ${cart.length > 0 ? `
-                        <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                        <span class="absolute -top-1 -right-2 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
                             ${cart.length}
                         </span>
                     ` : ''}
                 </div>
                 <span class="text-xs">Cart</span>
             </a>
-            <a href="#" onclick="navigate('profile')" class="flex flex-col items-center ${currentPage === 'profile' ? 'text-green-600' : 'text-gray-600'}">
+            <a href="#" onclick="navigate('profile')" class="flex flex-col items-center py-2 px-4 ${currentPage === 'profile' ? 'text-green-500' : 'text-gray-600'}">
                 <i class="fas fa-user text-xl mb-1"></i>
                 <span class="text-xs">Profile</span>
             </a>
@@ -298,113 +320,134 @@ function renderBottomNav() {
 
 // Update renderHome function to include notifications
 function renderHome() {
-    const products = JSON.parse(localStorage.getItem('products')) || [];
+    const homePage = document.getElementById('home-page');
+    if (!homePage) return;
+    
+    homePage.innerHTML = `
+        <div class="min-h-screen bg-gray-100 pb-16">
+            <!-- Header -->
+            <div class="bg-white sticky top-0 z-20 shadow-sm">
+                <div class="safe-area-top"></div>
+                <div class="flex items-center justify-between p-4">
+                    <h1 class="text-xl font-bold">Store</h1>
+                    <div class="flex items-center gap-3">
+                        <button onclick="navigate('notifications')" class="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+                            <i class="fas fa-bell text-lg text-gray-600"></i>
+                        </button>
+                        <button onclick="navigate('cart')" class="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100">
+                            <i class="fas fa-shopping-cart text-lg text-gray-600"></i>
+                            ${cart.length > 0 ? `
+                                <span class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                                    ${cart.length}
+                                </span>
+                            ` : ''}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="px-4 pb-3">
+                    <div class="relative" onclick="navigate('search')">
+                        <input type="text" 
+                               placeholder="Search products..." 
+                               class="w-full p-2.5 pl-10 rounded-full bg-gray-100 focus:outline-none text-sm"
+                               readonly>
+                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categories -->
+            <div class="bg-white shadow-sm sticky top-[116px] z-10">
+                <div class="px-2 py-3 overflow-x-auto scroll-smooth categories-scroll">
+                    <div class="flex space-x-2">
+                        ${renderCategories()}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products Grid -->
+            <div class="p-3">
+                <div class="grid grid-cols-2 gap-2">
+                    ${renderProducts()}
+                </div>
+            </div>
+        </div>
+        ${renderBottomNav()}
+    `;
+}
+
+function renderCategories() {
     const categories = JSON.parse(localStorage.getItem('categories')) || [];
+    const selectedCategory = localStorage.getItem('selectedCategory') || 'All';
+
+    return categories.map(category => `
+        <button onclick="filterByCategory('${category.name}')"
+                class="flex flex-col items-center justify-center min-w-[72px] p-2 rounded-lg ${
+                    category.name === selectedCategory
+                        ? 'text-green-500 bg-green-50'
+                        : 'text-gray-600'
+                }">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center ${
+                category.name === selectedCategory
+                    ? 'bg-green-100'
+                    : 'bg-gray-100'
+            }">
+                <i class="${category.icon} text-lg"></i>
+            </div>
+            <span class="text-xs mt-1 font-medium truncate w-full text-center">${category.name}</span>
+        </button>
+    `).join('');
+}
+
+function renderProducts() {
+    const products = JSON.parse(localStorage.getItem('products')) || [];
     const selectedCategory = localStorage.getItem('selectedCategory') || 'All';
 
     const filteredProducts = selectedCategory === 'All' 
         ? products 
         : products.filter(product => product.category === selectedCategory);
 
-    const homePage = document.getElementById('home-page');
-    if (!homePage) return;
-
-    homePage.innerHTML = `
-        <div class="pb-16">
-            <!-- Header -->
-            <div class="bg-white sticky top-0 z-10 shadow-sm">
-                <div class="flex items-center p-4">
-                    <h1 class="text-xl font-bold flex-1">Home</h1>
-                    <div class="flex items-center gap-4">
-                        <button onclick="navigate('wishlist')" class="relative">
-                            <i class="fas fa-heart text-gray-600"></i>
-                            ${wishlist.length > 0 ? `
-                                <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                            ` : ''}
-                        </button>
-                        <button onclick="navigate('notifications')" class="relative">
-                            <i class="fas fa-bell text-gray-600"></i>
-                        </button>
-                        <button onclick="navigate('cart')" class="relative">
-                            <i class="fas fa-shopping-cart text-gray-600"></i>
-                            ${cart.length > 0 ? `
-                                <span class="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                            ` : ''}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Search Bar -->
-            <div class="p-4">
-                <div class="relative" onclick="navigate('search')">
-                    <input type="text" 
-                           placeholder="Search products..." 
-                           class="w-full p-3 rounded-lg bg-white shadow-md focus:outline-none"
-                           readonly>
-                    <span class="absolute right-4 top-3">
-                        <i class="fas fa-search text-gray-400"></i>
+    return filteredProducts.map(product => `
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden active:scale-95 transition-transform" 
+             onclick="navigate('product', ${JSON.stringify(product)})">
+            <div class="relative pt-[100%] bg-gray-50">
+                <img src="${product.image}" 
+                     alt="${product.name}" 
+                     class="absolute top-0 left-0 w-full h-full object-contain p-2">
+                ${product.discount ? `
+                    <span class="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                        -${product.discount}%
                     </span>
-                </div>
+                ` : ''}
             </div>
-
-            <!-- Categories -->
-            <div class="px-4 mb-6">
-                <div class="flex overflow-x-auto scroll-smooth space-x-4 pb-2 categories-scroll">
-                    ${categories.map(category => `
-                        <button onclick="filterByCategory('${category.name}')"
-                                class="ripple flex-shrink-0 px-6 py-2 rounded-full ${
-                                    category.name === selectedCategory
-                                        ? 'bg-green-500 text-white'
-                                        : 'bg-white shadow'
-                                } whitespace-nowrap">
-                            <i class="${category.icon} mr-2"></i>
-                            ${category.name}
-                        </button>
-                    `).join('')}
-                </div>
-            </div>
-
-            <!-- Products Grid -->
-            <div class="grid grid-cols-2 gap-4 px-4">
-                ${filteredProducts.map(product => `
-                    <div class="product-card bg-white rounded-lg shadow-md overflow-hidden" 
-                         onclick="navigate('product', ${JSON.stringify(product)})">
-                        <div class="relative">
-                            <img src="${product.image}" 
-                                 alt="${product.name}" 
-                                 class="w-full h-40 object-contain p-4">
-                            <button onclick="event.stopPropagation(); toggleWishlist(${product.id})" 
-                                    class="absolute top-2 right-2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center">
-                                <i class="fas fa-heart ${wishlist.includes(product.id) ? 'text-red-500' : 'text-gray-300'}"></i>
-                            </button>
-                        </div>
-                        <div class="p-4">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-green-500 font-medium">
-                                    ${product.available ? 'In Stock' : 'Out of Stock'}
-                                </span>
-                                <div class="flex items-center">
-                                    <span class="mr-1">${product.rating}</span>
-                                    <i class="fas fa-star text-yellow-400"></i>
-                                </div>
-                            </div>
-                            <h3 class="font-medium mb-2 truncate">${product.name}</h3>
-                            <div class="flex flex-col gap-2">
-                                <div class="text-xl font-bold">${product.price} DZD</div>
-                                <button onclick="event.stopPropagation(); addToCart(${product.id})" 
-                                        class="ripple w-full bg-green-500 text-white px-4 py-2 rounded-lg flex items-center justify-center">
-                                    <i class="fas fa-cart-plus mr-2"></i>
-                                    Add to Cart
-                                </button>
-                            </div>
-                        </div>
+            <div class="p-2">
+                <h3 class="text-sm font-medium line-clamp-2 min-h-[2.5rem] mb-1">${product.name}</h3>
+                <div class="flex items-center gap-1 mb-2">
+                    <div class="flex items-center text-yellow-400 text-xs">
+                        <i class="fas fa-star"></i>
+                        <span class="ml-1 text-gray-600">${product.rating}</span>
                     </div>
-                `).join('')}
+                    <span class="text-xs text-gray-400">•</span>
+                    <span class="text-xs text-gray-600">${product.sold || 0} sold</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-green-600 font-bold text-sm">${product.price} DZD</div>
+                        ${product.oldPrice ? `
+                            <div class="text-xs text-gray-400 line-through">${product.oldPrice} DZD</div>
+                        ` : ''}
+                    </div>
+                    <button onclick="event.stopPropagation(); addToCart(${product.id})" 
+                            class="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center shadow-sm active:scale-95 transition-transform">
+                        <i class="fas fa-plus text-sm"></i>
+                    </button>
+                </div>
             </div>
         </div>
-        ${renderBottomNav()}
-    `;
+    `).join('');
 }
 
 function renderProductDetail() {
@@ -433,14 +476,6 @@ function renderProductDetail() {
                     <img src="${selectedProduct.image}" 
                          alt="${selectedProduct.name}" 
                          class="w-full h-72 object-contain p-4">
-                    <button onclick="toggleWishlist(${selectedProduct.id})" 
-                            class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
-                        <i class="fas fa-heart ${
-                            wishlist.includes(selectedProduct.id)
-                                ? 'text-red-500'
-                                : 'text-gray-300'
-                        } text-xl"></i>
-                    </button>
                 </div>
             </div>
 
@@ -631,71 +666,6 @@ function closeQuickView() {
     }
 }
 
-function renderWishlist() {
-    app.innerHTML = `
-        <div class="pb-16">
-            <!-- Header -->
-            <div class="bg-white sticky top-0 z-10">
-                <div class="flex items-center p-4">
-                    <button onclick="navigate('home')" class="mr-4">
-                        <i class="fas fa-arrow-left text-xl"></i>
-                    </button>
-                    <h1 class="text-xl font-bold">Wishlist</h1>
-                </div>
-            </div>
-
-            ${
-                wishlist.length === 0
-                    ? `
-                <div class="flex flex-col items-center justify-center p-8">
-                    <i class="fas fa-heart text-gray-300 text-5xl mb-4"></i>
-                    <p class="text-gray-500">Your wishlist is empty</p>
-                    <button onclick="navigate('home')" 
-                            class="mt-4 text-green-500 font-semibold">
-                        Continue Shopping
-                    </button>
-                </div>
-            `
-                    : `
-                <div class="grid grid-cols-2 gap-4 p-4">
-                    ${products
-                        .filter(p => wishlist.includes(p.id))
-                        .map(
-                            product => `
-                        <div class="product-card bg-white rounded-lg shadow-md overflow-hidden" 
-                             onclick="navigate('product', ${JSON.stringify(
-                                 product
-                             )})">
-                            <div class="relative">
-                                <img src="${product.image}" 
-                                     alt="${product.name}" 
-                                     class="w-full h-40 object-contain p-4">
-                                <button onclick="event.stopPropagation(); toggleWishlist(${
-                                    product.id
-                                })" 
-                                        class="absolute top-2 right-2 w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center">
-                                    <i class="fas fa-heart text-red-500"></i>
-                                </button>
-                            </div>
-                            <div class="p-4">
-                                <h3 class="font-medium mb-1 truncate">${
-                                    product.name
-                                }</h3>
-                                <div class="text-xl font-bold">${product.price} DZD</div>
-                            </div>
-                        </div>
-                    `
-                        )
-                        .join('')}
-                </div>
-            `
-            }
-        </div>
-
-        ${renderBottomNav()}
-    `;
-}
-
 function renderSavedAddresses() {
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     const addresses = currentUser?.addresses || [];
@@ -748,7 +718,6 @@ function renderProfile() {
     }
 
     const orders = JSON.parse(localStorage.getItem('orders')) || [];
-    const wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
     const userOrders = orders.filter(order => order.userId === currentUser.id);
 
     const profilePage = document.getElementById('profile-page');
@@ -767,7 +736,7 @@ function renderProfile() {
             </div>
 
             <div class="container mx-auto px-4 py-6">
-                ${renderUserInfo(userOrders, wishlist)}
+                ${renderUserInfo(userOrders)}
                 ${renderRecentOrders(userOrders)}
                 ${renderSavedAddresses()}
             </div>
@@ -784,7 +753,6 @@ function updateProfileStats() {
     if (!currentUser) return;
 
     const orders = JSON.parse(localStorage.getItem('orders')) || [];
-    const wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
     
     // Filter orders for current user
     const userOrders = orders.filter(order => order.userId === currentUser.id);
@@ -793,21 +761,19 @@ function updateProfileStats() {
     // Safely update DOM elements if they exist
     const totalOrdersEl = document.getElementById('total-orders');
     const pendingOrdersEl = document.getElementById('pending-orders');
-    const wishlistItemsEl = document.getElementById('wishlist-items');
     
     if (totalOrdersEl) totalOrdersEl.textContent = userOrders.length;
     if (pendingOrdersEl) pendingOrdersEl.textContent = pendingOrders.length;
-    if (wishlistItemsEl) wishlistItemsEl.textContent = wishlist.length;
 }
 
 // Add storage event listener for updates
 window.addEventListener('storage', (e) => {
-    if (e.key === 'orders' || e.key === 'wishlist') {
+    if (e.key === 'orders') {
         updateProfileStats();
     }
 });
 
-function renderUserInfo(userOrders, userWishlist) {
+function renderUserInfo(userOrders) {
     const currentUser = JSON.parse(localStorage.getItem('currentUser'));
     if (!currentUser) return '';
 
@@ -835,10 +801,6 @@ function renderUserInfo(userOrders, userWishlist) {
                     <div class="bg-white p-4 rounded-lg shadow text-center">
                         <div class="text-xl font-bold" id="pending-orders">0</div>
                         <div class="text-gray-600">Pending Orders</div>
-                    </div>
-                    <div class="bg-white p-4 rounded-lg shadow text-center">
-                        <div class="text-xl font-bold" id="wishlist-items">0</div>
-                        <div class="text-gray-600">Wishlist Items</div>
                     </div>
                 </div>
 
@@ -931,7 +893,10 @@ function renderDelivery() {
     const deliveryFee = deliveryOption === 'express' ? 50 : 0;
     const finalTotal = total + deliveryFee;
 
-    app.innerHTML = `
+    const deliveryPage = document.getElementById('delivery-page');
+    if (!deliveryPage) return;
+
+    deliveryPage.innerHTML = `
         <div class="min-h-screen pb-20">
             <!-- Header -->
             <div class="bg-white sticky top-0 z-10">
@@ -971,12 +936,7 @@ function renderDelivery() {
             </div>
 
             <!-- Delivery Form -->
-            <form id="deliveryForm" class="p-4 space-y-6" onsubmit="event.preventDefault(); placeOrder();">
-            
-            
-            
-            
-            
+            <form id="deliveryForm" class="p-4 space-y-6">
                 <!-- Contact Information -->
                 <div class="bg-white p-4 rounded-lg shadow-sm">
                     <h2 class="text-lg font-semibold mb-4">Contact Information</h2>
@@ -1041,11 +1001,7 @@ function renderDelivery() {
                     <div class="space-y-3">
                         <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                             <input type="radio" name="deliveryOption" value="standard" 
-                                   ${
-                                       deliveryOption === 'standard'
-                                           ? 'checked'
-                                           : ''
-                                   }
+                                   ${deliveryOption === 'standard' ? 'checked' : ''}
                                    onchange="updateDeliveryOption('standard')"
                                    class="w-4 h-4 text-green-500">
                             <div class="ml-3 flex-1">
@@ -1056,18 +1012,14 @@ function renderDelivery() {
                         </label>
                         <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                             <input type="radio" name="deliveryOption" value="express"
-                                   ${
-                                       deliveryOption === 'express'
-                                           ? 'checked'
-                                           : ''
-                                   }
+                                   ${deliveryOption === 'express' ? 'checked' : ''}
                                    onchange="updateDeliveryOption('express')"
                                    class="w-4 h-4 text-green-500">
                             <div class="ml-3 flex-1">
                                 <div class="font-medium">Express Delivery</div>
                                 <div class="text-sm text-gray-500">1-2 business days</div>
                             </div>
-                            <div class="font-medium text-green-500">₹50</div>
+                            <div class="font-medium text-green-500">50 DZD</div>
                         </label>
                     </div>
                 </div>
@@ -1078,7 +1030,8 @@ function renderDelivery() {
                         <div class="text-gray-600">Total Amount</div>
                         <div class="text-xl font-bold">${finalTotal} DZD</div>
                     </div>
-                    <button type="submit"
+                    <button type="button"
+                            onclick="handlePlaceOrder()"
                             class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold flex items-center justify-center">
                         <i class="fas fa-lock mr-2"></i>
                         Place Order
@@ -1086,40 +1039,10 @@ function renderDelivery() {
                 </div>
             </form>
         </div>
-
-        <!-- Success Modal -->
-        <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
-            <div class="bg-white rounded-lg p-6 w-[90%] max-w-md">
-                <div class="text-center">
-                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-check text-3xl text-green-500 success-checkmark"></i>
-                    </div>
-                    <h3 class="text-xl font-bold mb-2">Order Placed Successfully!</h3>
-                    <p class="text-gray-600 mb-6">Thank you for your order. We'll send you a confirmation email shortly.</p>
-                    <button onclick="navigate('home')" 
-                            class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold">
-                        Continue Shopping
-                    </button>
-                </div>
-            </div>
-        </div>
     `;
 }
 
-function updateDeliveryOption(option) {
-    deliveryOption = option;
-    renderDelivery();
-}
-
-function checkout() {
-    if (cart.length === 0) {
-        showToast('Your cart is empty');
-        return;
-    }
-    navigate('delivery');
-}
-
-function placeOrder() {
+function handlePlaceOrder() {
     const form = document.getElementById('deliveryForm');
     if (!form.checkValidity()) {
         form.reportValidity();
@@ -1176,11 +1099,33 @@ function placeOrder() {
     // Clear cart
     resetCart();
 
-    // Show success message and redirect
-    showToast('Order placed successfully!');
+    // Show success modal
+    const successModal = document.getElementById('successModal');
+    if (successModal) {
+        successModal.classList.add('show');
+    }
+
+    // Auto-close modal and navigate after 3 seconds
     setTimeout(() => {
-        navigate('profile');
-    }, 2000);
+        if (successModal) {
+            successModal.classList.remove('show');
+        }
+        navigate('home');
+        renderHome();
+    }, 3000);
+}
+
+function updateDeliveryOption(option) {
+    deliveryOption = option;
+    renderDelivery();
+}
+
+function checkout() {
+    if (cart.length === 0) {
+        showToast('Your cart is empty');
+        return;
+    }
+    navigate('delivery');
 }
 
 function renderSearch() {
@@ -1262,54 +1207,63 @@ function renderCart() {
     if (!cartPage) return;
 
     cartPage.innerHTML = `
-        <div class="pb-32">
+        <div class="min-h-screen bg-gray-50">
             <!-- Header -->
-            <div class="bg-white sticky top-0 z-10">
+            <div class="bg-white sticky top-0 z-10 shadow-sm">
                 <div class="flex items-center p-4">
-                    <button onclick="navigate('home')" class="mr-4">
+                    <button onclick="navigate('home')" class="mr-4 text-gray-600 hover:text-gray-800">
                         <i class="fas fa-arrow-left text-xl"></i>
                     </button>
-                    <h1 class="text-xl font-bold">Shopping Cart (${cart.length})</h1>
+                    <h1 class="text-xl font-bold">Cart</h1>
+                    ${cart.length > 0 ? `
+                        <span class="ml-2 px-2 py-1 bg-green-100 text-green-600 text-sm font-medium rounded-full">
+                            ${cart.length} items
+                        </span>
+                    ` : ''}
                 </div>
             </div>
 
             ${cart.length === 0 ? `
                 <div class="flex flex-col items-center justify-center p-8">
-                    <i class="fas fa-shopping-cart text-6xl text-gray-300 mb-4"></i>
-                    <p class="text-gray-500 text-lg mb-4">Your cart is empty</p>
+                    <div class="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                        <i class="fas fa-shopping-cart text-4xl text-gray-400"></i>
+                    </div>
+                    <p class="text-gray-600 text-lg mb-4">Your cart is empty</p>
                     <button onclick="navigate('home')" 
-                            class="bg-green-500 text-white px-6 py-2 rounded-lg font-semibold">
+                            class="px-6 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors">
                         Start Shopping
                     </button>
                 </div>
             ` : `
-                <div class="space-y-4 p-4">
+                <div class="p-4 space-y-3">
                     ${cart.map(item => {
                         const product = products.find(p => p.id === item.id);
                         if (!product) return '';
                         return `
-                            <div class="bg-white rounded-lg shadow-md p-4">
-                                <div class="flex items-center">
-                                    <img src="${product.image}" 
-                                         alt="${product.name}" 
-                                         class="w-20 h-20 object-contain mr-4">
-                                    <div class="flex-1">
-                                        <h3 class="font-medium mb-1">${product.name}</h3>
-                                        <div class="text-gray-500 mb-2">
+                            <div class="bg-white rounded-xl shadow-sm p-3">
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-20 h-20 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0">
+                                        <img src="${product.image}" 
+                                             alt="${product.name}" 
+                                             class="w-full h-full object-contain p-2">
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-medium text-sm mb-1 line-clamp-1">${product.name}</h3>
+                                        <div class="text-xs text-gray-500 mb-2">
                                             ${item.color ? `Color: ${item.color}` : ''}
-                                            ${item.size ? `Size: ${item.size}` : ''}
+                                            ${item.size ? ` • Size: ${item.size}` : ''}
                                         </div>
-                                        <div class="flex justify-between items-center">
-                                            <div class="text-xl font-bold">${product.price} DZD</div>
+                                        <div class="flex items-center justify-between">
+                                            <div class="text-green-600 font-bold">${product.price} DZD</div>
                                             <div class="flex items-center space-x-3">
                                                 <button onclick="updateQuantity(${product.id}, ${item.quantity - 1})"
-                                                        class="w-8 h-8 rounded-full border-2 flex items-center justify-center">
-                                                    <i class="fas ${item.quantity === 1 ? 'fa-trash' : 'fa-minus'}"></i>
+                                                        class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                                                    <i class="fas ${item.quantity === 1 ? 'fa-trash text-red-500' : 'fa-minus text-gray-600'} text-sm"></i>
                                                 </button>
-                                                <span class="font-medium">${item.quantity}</span>
+                                                <span class="font-medium text-sm w-4 text-center">${item.quantity}</span>
                                                 <button onclick="updateQuantity(${product.id}, ${item.quantity + 1})"
-                                                        class="w-8 h-8 rounded-full border-2 flex items-center justify-center">
-                                                    <i class="fas fa-plus"></i>
+                                                        class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                                                    <i class="fas fa-plus text-gray-600 text-sm"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -1321,16 +1275,28 @@ function renderCart() {
                 </div>
 
                 <!-- Order Summary -->
-                <div class="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-lg">
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-gray-600">Total</span>
-                        <span class="text-xl font-bold">${total} DZD</span>
+                <div class="fixed bottom-0 left-0 right-0 bg-white shadow-lg">
+                    <div class="p-4 space-y-4">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Subtotal</span>
+                            <span class="font-medium">${total} DZD</span>
+                        </div>
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-gray-600">Delivery Fee</span>
+                            <span class="font-medium text-green-600">Free</span>
+                        </div>
+                        <div class="border-t pt-4 flex items-center justify-between">
+                            <div>
+                                <div class="text-gray-600 text-sm">Total</div>
+                                <div class="text-xl font-bold">${total} DZD</div>
+                            </div>
+                            <button onclick="checkout()" 
+                                    class="px-8 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors flex items-center">
+                                <i class="fas fa-lock mr-2"></i>
+                                Checkout
+                            </button>
+                        </div>
                     </div>
-                    <button onclick="checkout()" 
-                            class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold flex items-center justify-center">
-                        <i class="fas fa-lock mr-2"></i>
-                        Proceed to Checkout
-                    </button>
                 </div>
             `}
         </div>
@@ -1348,6 +1314,47 @@ function initializeCategories() {
             { id: 5, name: 'Sports', description: 'Sports and fitness', icon: 'fas fa-running' }
         ];
         localStorage.setItem('categories', JSON.stringify(defaultCategories));
+    }
+}
+
+// Initialize products if not exists
+function initializeProducts() {
+    if (!localStorage.getItem('products')) {
+        const defaultProducts = [
+            {
+                id: 1,
+                name: "Smartphone X",
+                price: 49999,
+                image: "https://via.placeholder.com/200",
+                category: "Electronics",
+                rating: 4.5,
+                sold: 120,
+                description: "Latest smartphone with amazing features",
+                specs: ["6.5 inch display", "128GB storage", "48MP camera"],
+                colors: ["Black", "Blue", "Silver"],
+                sizes: [],
+                discount: 10,
+                oldPrice: 54999
+            },
+            // Add more default products as needed
+        ];
+        localStorage.setItem('products', JSON.stringify(defaultProducts));
+    }
+}
+
+// Initialize notifications if not exists
+function initializeNotifications() {
+    if (!localStorage.getItem('notifications')) {
+        const defaultNotifications = [
+            {
+                id: 1,
+                message: "Welcome to our store!",
+                icon: "fa-bell",
+                timestamp: new Date().toISOString(),
+                isRead: false
+            }
+        ];
+        localStorage.setItem('notifications', JSON.stringify(defaultNotifications));
     }
 }
 
@@ -1511,4 +1518,98 @@ function editAddress(index) {
         renderProfile();
         showToast('Address updated successfully');
     });
+}
+
+// Add to cart function
+function addToCart(productId) {
+    const products = JSON.parse(localStorage.getItem('products')) || [];
+    const product = products.find(p => p.id === productId);
+    
+    if (!product) {
+        showToast('Product not found');
+        return;
+    }
+
+    // Initialize cart if not exists
+    let cart = JSON.parse(localStorage.getItem('cart')) || [];
+
+    // Check if product is already in cart
+    const existingItem = cart.find(item => item.id === productId);
+    
+    if (existingItem) {
+        // Update quantity if already in cart
+        existingItem.quantity += 1;
+    } else {
+        // Add new item to cart
+        cart.push({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            image: product.image,
+            quantity: 1
+        });
+    }
+
+    // Save cart to localStorage
+    localStorage.setItem('cart', JSON.stringify(cart));
+    
+    // Show success message
+    showToast('Added to cart');
+    
+    // Update cart count in UI
+    const cartCount = document.querySelector('.bottom-nav .fa-shopping-cart + span');
+    if (cartCount) {
+        cartCount.textContent = cart.length;
+    }
+
+    // Update the global cart variable
+    window.cart = cart;
+}
+
+// Update quantity function
+function updateQuantity(productId, newQuantity) {
+    if (newQuantity < 1) {
+        // Remove item from cart if quantity is 0
+        cart = cart.filter(item => item.id !== productId);
+    } else {
+        // Update quantity
+        const item = cart.find(item => item.id === productId);
+        if (item) {
+            item.quantity = newQuantity;
+        }
+    }
+
+    // Save cart to localStorage
+    localStorage.setItem('cart', JSON.stringify(cart));
+    
+    // Update cart display
+    renderCart();
+}
+
+// Reset cart function
+function resetCart() {
+    cart = [];
+    localStorage.setItem('cart', JSON.stringify(cart));
+    renderCart();
+}
+
+// Calculate subtotal function
+function calculateSubtotal() {
+    return cart.reduce((total, item) => {
+        return total + (item.price * item.quantity);
+    }, 0);
+}
+
+function closeSuccessModal() {
+    const successModal = document.getElementById('successModal');
+    if (successModal) {
+        successModal.classList.remove('show');
+    }
+    // Navigate to home page
+    currentPage = 'home';
+    const homePage = document.getElementById('home-page');
+    if (homePage) {
+        homePage.style.display = 'block';
+        renderHome();
+    }
 }

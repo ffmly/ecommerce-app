@@ -83,6 +83,22 @@
             0%, 100% { opacity: 1; }
             50% { opacity: .5; }
         }
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.show {
+            display: flex;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -105,10 +121,25 @@
         <div id="cart-page" class="page"></div>
         <div id="profile-page" class="page"></div>
         <div id="product-page" class="page"></div>
-        <div id="wishlist-page" class="page"></div>
         <div id="delivery-page" class="page"></div>
         <div id="login-page" class="page"></div>
         <div id="signup-page" class="page"></div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal">
+        <div class="bg-white rounded-lg p-6 w-[90%] max-w-md">
+            <div class="text-center">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-check text-3xl text-green-500"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">Order Placed Successfully!</h3>
+                <p class="text-gray-600 mb-6">Thank you for your order. We'll send you a confirmation email shortly.</p>
+                <button onclick="closeSuccessModal()" class="w-full bg-green-500 text-white py-3 rounded-lg font-semibold">
+                    Continue Shopping
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->

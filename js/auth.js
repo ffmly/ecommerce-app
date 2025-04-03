@@ -19,132 +19,156 @@ function loadAuthState() {
     }
 }
 
-function handleLogin(event) {
-    event.preventDefault();
-    
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    
+function showToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 z-50 p-4 rounded-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+    } transition-all duration-300 transform translate-y-[-100%] opacity-0`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Animate in
+    setTimeout(() => {
+        toast.style.transform = 'translateY(0)';
+        toast.style.opacity = '1';
+    }, 100);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.style.transform = 'translateY(-100%)';
+        toast.style.opacity = '0';
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 3000);
+}
+
+function handleLogin() {
+    const email = document.getElementById('login-email')?.value;
+    const password = document.getElementById('login-password')?.value;
+
+    if (!email || !password) {
+        showToast('Please fill in all fields');
+        return;
+    }
+
     // Get users from localStorage
     const users = JSON.parse(localStorage.getItem('users')) || [];
     
-    // Find user
-    const user = users.find(u => u.email === email && u.password === btoa(password));
-    
-    if (user) {
-        // Update auth state
-        authState.isAuthenticated = true;
-        authState.currentUser = {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phone: user.phone,
-            address: user.address,
-            avatar: user.avatar || 'https://via.placeholder.com/50',
-            addresses: user.addresses || []
-        };
-        saveAuthState();
-        
-        // Add login notification for admin
-        const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
-        notifications.unshift({
-            message: `User logged in: ${user.name}`,
-            icon: 'fa-sign-in-alt',
-            timestamp: new Date().toISOString(),
-            type: 'auth'
-        });
-        localStorage.setItem('notifications', JSON.stringify(notifications));
-        
-        // Navigate to home page
-        navigate('home');
-    } else {
+    // Find user and check password (using base64 encoding for demo)
+    const user = users.find(u => u.email === email && (u.password === password || u.password === btoa(password)));
+
+    if (!user) {
         showToast('Invalid email or password');
+        return;
     }
+
+    if (user.status === 'suspended') {
+        showToast('Your account has been suspended. Please contact support.');
+        return;
+    }
+
+    // Update last login
+    user.lastLogin = new Date().toISOString();
+    localStorage.setItem('users', JSON.stringify(users));
+
+    // Set auth state
+    authState.isAuthenticated = true;
+    authState.currentUser = user;
+    localStorage.setItem('currentUser', JSON.stringify(user));
+
+    // Add notification for admin
+    const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
+    notifications.unshift({
+        message: `User logged in: ${user.name}`,
+        icon: 'fa-sign-in-alt',
+        timestamp: new Date().toISOString(),
+        type: 'user'
+    });
+    localStorage.setItem('notifications', JSON.stringify(notifications));
+
+    // Show success message
+    showToast('Login successful!');
+
+    // Navigate to home page after a short delay
+    setTimeout(() => {
+        navigate('home');
+    }, 1000);
 }
 
-function handleSignup(event) {
-    event.preventDefault();
-    
-    const name = document.getElementById('signup-name').value;
-    const email = document.getElementById('signup-email').value;
-    const password = document.getElementById('signup-password').value;
-    const confirmPassword = document.getElementById('signup-confirm-password').value;
-    
-    // Validate password match
+function handleSignup() {
+    const name = document.getElementById('signup-name')?.value;
+    const email = document.getElementById('signup-email')?.value;
+    const password = document.getElementById('signup-password')?.value;
+    const confirmPassword = document.getElementById('signup-confirm-password')?.value;
+
+    if (!name || !email || !password || !confirmPassword) {
+        showToast('Please fill in all fields');
+        return;
+    }
+
     if (password !== confirmPassword) {
         showToast('Passwords do not match');
         return;
     }
-    
+
     // Get existing users
     const users = JSON.parse(localStorage.getItem('users')) || [];
     
-    // Check if email already exists
-    if (users.some(u => u.email === email)) {
+    // Check if user already exists
+    if (users.some(user => user.email === email)) {
         showToast('Email already registered');
         return;
     }
-    
+
     // Create new user
     const newUser = {
-        id: Date.now().toString(),
+        id: Date.now(),
         name,
         email,
         password: btoa(password), // Basic encoding for demo
         addresses: [],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
     };
-    
-    // Add user to storage
+
+    // Add user to users array
     users.push(newUser);
+    
+    // Save to localStorage
     localStorage.setItem('users', JSON.stringify(users));
     
-    // Update auth state
+    // Set current user and auth state
+    localStorage.setItem('currentUser', JSON.stringify(newUser));
     authState.isAuthenticated = true;
-    authState.currentUser = {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        avatar: 'https://via.placeholder.com/50',
-        addresses: []
-    };
-    saveAuthState();
-    
-    // Add signup notification for admin
-    const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
-    notifications.unshift({
-        message: `New user registered: ${name}`,
-        icon: 'fa-user-plus',
-        timestamp: new Date().toISOString(),
-        type: 'auth'
-    });
-    localStorage.setItem('notifications', JSON.stringify(notifications));
-    
-    // Navigate to home page
-    navigate('home');
+    authState.currentUser = newUser;
+
+    // Show success message
+    showToast('Account created successfully!');
+
+    // Navigate to home page after a short delay
+    setTimeout(() => {
+        navigate('home');
+    }, 1000);
 }
 
 function logout() {
     // Clear auth state
     authState.isAuthenticated = false;
     authState.currentUser = null;
-    saveAuthState();
     
-    // Clear sensitive data
+    // Clear user data from localStorage
+    localStorage.removeItem('currentUser');
     localStorage.removeItem('cart');
+    window.cart = [];
     
-    // Add logout notification for admin
-    const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
-    notifications.unshift({
-        message: 'User logged out',
-        icon: 'fa-sign-out-alt',
-        timestamp: new Date().toISOString(),
-        type: 'auth'
-    });
-    localStorage.setItem('notifications', JSON.stringify(notifications));
+    // Show success message
+    showToast('Logged out successfully');
     
     // Navigate to login page
-    navigate('login');
+    setTimeout(() => {
+        navigate('login');
+    }, 500);
 }
 
 // Address Management
@@ -345,64 +369,57 @@ document.addEventListener('DOMContentLoaded', loadAuthState);
 
 // Render auth screens
 function renderLogin() {
-    return `
-        <div class="auth-container">
-            <div class="auth-card">
-                <div class="auth-logo">
-                    <i class="fas fa-shopping-bag text-4xl text-green-500"></i>
+    const loginPage = document.getElementById('login-page');
+    if (!loginPage) return;
+
+    loginPage.innerHTML = `
+        <div class="min-h-screen bg-gray-50 flex flex-col">
+            <!-- Header -->
+            <div class="bg-white shadow-sm">
+                <div class="p-4">
+                    <h1 class="text-2xl font-bold text-center">Welcome Back</h1>
+                    <p class="text-gray-600 text-center mt-1">Sign in to continue shopping</p>
                 </div>
-                <div class="auth-header">
-                    <h2>Welcome Back!</h2>
-                    <p>Sign in to continue shopping</p>
-                </div>
-                <form class="auth-form" onsubmit="handleLogin(event)">
-                    <div class="form-group">
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-envelope text-gray-400"></i>
-                            <input type="email" id="login-email" placeholder=" " required>
-                            <label for="login-email">Email</label>
+            </div>
+
+            <!-- Login Form -->
+            <div class="flex-1 flex flex-col justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-sm p-6 space-y-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <div class="relative">
+                                <input type="email" id="login-email" required
+                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
+                                    placeholder="Enter your email">
+                                <i class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <div class="relative">
+                                <input type="password" id="login-password" required
+                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
+                                    placeholder="Enter your password">
+                                <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-lock text-gray-400"></i>
-                            <input type="password" id="login-password" placeholder=" " required>
-                            <label for="login-password">Password</label>
-                            <button type="button" class="password-toggle" onclick="togglePassword('login-password')">
-                                <i class="fas fa-eye text-gray-400"></i>
+
+                    <button onclick="handleLogin()"
+                            class="w-full bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600 transition-colors flex items-center justify-center">
+                        <i class="fas fa-sign-in-alt mr-2"></i>
+                        Sign In
+                    </button>
+
+                    <div class="text-center">
+                        <p class="text-gray-600">
+                            Don't have an account? 
+                            <button onclick="navigate('signup')" class="text-green-600 font-medium hover:text-green-700">
+                                Sign Up
                             </button>
-                        </div>
+                        </p>
                     </div>
-                    <div class="flex items-center justify-between mb-4">
-                        <label class="flex items-center">
-                            <input type="checkbox" class="form-checkbox">
-                            <span class="ml-2 text-sm text-gray-600">Remember me</span>
-                        </label>
-                        <a href="#" class="text-sm text-green-600 hover:text-green-700">Forgot Password?</a>
-                    </div>
-                    ${authState.error ? `<div class="error-message">${authState.error}</div>` : ''}
-                    <button type="submit" class="auth-button ripple">
-                        <span>Sign In</span>
-                        <i class="fas fa-arrow-right ml-2"></i>
-                    </button>
-                </form>
-                <div class="auth-divider">or continue with</div>
-                <div class="social-auth">
-                    <button class="social-button google" onclick="socialLogin('google')">
-                        <i class="fab fa-google"></i>
-                        <span>Google</span>
-                    </button>
-                    <button class="social-button facebook" onclick="socialLogin('facebook')">
-                        <i class="fab fa-facebook"></i>
-                        <span>Facebook</span>
-                    </button>
-                </div>
-                <div class="auth-footer">
-                    <p>Don't have an account? 
-                        <a href="#" onclick="navigate('signup')" class="text-green-600 hover:text-green-700 font-semibold">
-                            Create Account
-                        </a>
-                    </p>
                 </div>
             </div>
         </div>
@@ -410,81 +427,75 @@ function renderLogin() {
 }
 
 function renderSignup() {
-    return `
-        <div class="auth-container">
-            <div class="auth-card">
-                <div class="auth-logo">
-                    <i class="fas fa-shopping-bag text-4xl text-green-500"></i>
+    const signupPage = document.getElementById('signup-page');
+    if (!signupPage) return;
+
+    signupPage.innerHTML = `
+        <div class="min-h-screen bg-gray-50 flex flex-col">
+            <!-- Header -->
+            <div class="bg-white shadow-sm">
+                <div class="p-4">
+                    <h1 class="text-2xl font-bold text-center">Create Account</h1>
+                    <p class="text-gray-600 text-center mt-1">Sign up to start shopping</p>
                 </div>
-                <div class="auth-header">
-                    <h2>Create Account</h2>
-                    <p>Join us for a better shopping experience</p>
-                </div>
-                <form class="auth-form" onsubmit="handleSignup(event)">
-                    <div class="form-group">
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-user text-gray-400"></i>
-                            <input type="text" id="signup-name" placeholder=" " required>
-                            <label for="signup-name">Full Name</label>
+            </div>
+
+            <!-- Signup Form -->
+            <div class="flex-1 flex flex-col justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-sm p-6 space-y-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                            <div class="relative">
+                                <input type="text" id="signup-name" required
+                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
+                                    placeholder="Enter your full name">
+                                <i class="fas fa-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <div class="relative">
+                                <input type="email" id="signup-email" required
+                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
+                                    placeholder="Enter your email">
+                                <i class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <div class="relative">
+                                <input type="password" id="signup-password" required
+                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
+                                    placeholder="Create a password">
+                                <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                            <div class="relative">
+                                <input type="password" id="signup-confirm-password" required
+                                    class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
+                                    placeholder="Confirm your password">
+                                <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            </div>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-envelope text-gray-400"></i>
-                            <input type="email" id="signup-email" placeholder=" " required>
-                            <label for="signup-email">Email</label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-lock text-gray-400"></i>
-                            <input type="password" id="signup-password" placeholder=" " required>
-                            <label for="signup-password">Password</label>
-                            <button type="button" class="password-toggle" onclick="togglePassword('signup-password')">
-                                <i class="fas fa-eye text-gray-400"></i>
+
+                    <button onclick="handleSignup()"
+                            class="w-full bg-green-500 text-white py-3 rounded-xl font-semibold hover:bg-green-600 transition-colors flex items-center justify-center">
+                        <i class="fas fa-user-plus mr-2"></i>
+                        Create Account
+                    </button>
+
+                    <div class="text-center">
+                        <p class="text-gray-600">
+                            Already have an account? 
+                            <button onclick="navigate('login')" class="text-green-600 font-medium hover:text-green-700">
+                                Sign In
                             </button>
-                        </div>
+                        </p>
                     </div>
-                    <div class="form-group">
-                        <div class="input-icon-wrapper">
-                            <i class="fas fa-lock text-gray-400"></i>
-                            <input type="password" id="signup-confirm-password" placeholder=" " required>
-                            <label for="signup-confirm-password">Confirm Password</label>
-                            <button type="button" class="password-toggle" onclick="togglePassword('signup-confirm-password')">
-                                <i class="fas fa-eye text-gray-400"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="flex items-center mb-4">
-                        <input type="checkbox" id="terms" class="form-checkbox" required>
-                        <label for="terms" class="ml-2 text-sm text-gray-600">
-                            I agree to the <a href="#" class="text-green-600 hover:text-green-700">Terms</a> and 
-                            <a href="#" class="text-green-600 hover:text-green-700">Privacy Policy</a>
-                        </label>
-                    </div>
-                    ${authState.error ? `<div class="error-message">${authState.error}</div>` : ''}
-                    <button type="submit" class="auth-button ripple">
-                        <span>Create Account</span>
-                        <i class="fas fa-arrow-right ml-2"></i>
-                    </button>
-                </form>
-                <div class="auth-divider">or sign up with</div>
-                <div class="social-auth">
-                    <button class="social-button google" onclick="socialLogin('google')">
-                        <i class="fab fa-google"></i>
-                        <span>Google</span>
-                    </button>
-                    <button class="social-button facebook" onclick="socialLogin('facebook')">
-                        <i class="fab fa-facebook"></i>
-                        <span>Facebook</span>
-                    </button>
-                </div>
-                <div class="auth-footer">
-                    <p>Already have an account? 
-                        <a href="#" onclick="navigate('login')" class="text-green-600 hover:text-green-700 font-semibold">
-                            Sign In
-                        </a>
-                    </p>
                 </div>
             </div>
         </div>
@@ -514,91 +525,60 @@ async function handleSignup(event) {
     const name = document.getElementById('signup-name').value;
     const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
+    const confirmPassword = document.getElementById('signup-confirm-password').value;
     
-    // Check if email already exists
-    const users = JSON.parse(localStorage.getItem('users')) || [];
-    if (users.some(user => user.email === email)) {
-        showToast('Email already exists');
+    // Validate password match
+    if (password !== confirmPassword) {
+        showToast('Passwords do not match', 'error');
         return;
     }
     
-    // Create new user object
+    // Get existing users
+    const users = JSON.parse(localStorage.getItem('users')) || [];
+    
+    // Check if email already exists
+    if (users.some(u => u.email === email)) {
+        showToast('Email already registered', 'error');
+        return;
+    }
+    
+    // Create new user
     const newUser = {
-        id: `user_${Date.now()}`,
+        id: Date.now().toString(),
         name,
         email,
-        password: btoa(password), // Basic encoding (not for production)
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
-        createdAt: new Date().toISOString(),
-        status: 'active',
+        password: btoa(password), // Basic encoding for demo
         addresses: [],
-        orders: [],
-        wishlist: []
+        createdAt: new Date().toISOString()
     };
     
-    // Save to users list
+    // Add user to storage
     users.push(newUser);
     localStorage.setItem('users', JSON.stringify(users));
     
-    // Auto login after signup
+    // Update auth state
     authState.isAuthenticated = true;
-    authState.currentUser = newUser;
-    localStorage.setItem('currentUser', JSON.stringify(newUser));
+    authState.currentUser = {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        avatar: 'https://via.placeholder.com/50',
+        addresses: []
+    };
+    saveAuthState();
     
-    // Add notification for admin
+    // Add signup notification for admin
     const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
     notifications.unshift({
         message: `New user registered: ${name}`,
         icon: 'fa-user-plus',
         timestamp: new Date().toISOString(),
-        type: 'user'
+        type: 'auth'
     });
     localStorage.setItem('notifications', JSON.stringify(notifications));
     
     showToast('Signup successful!');
-    navigate('profile');
-}
-
-async function handleLogin(event) {
-    event.preventDefault();
-    
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    
-    const users = JSON.parse(localStorage.getItem('users')) || [];
-    const user = users.find(u => u.email === email && u.password === btoa(password));
-    
-    if (!user) {
-        showToast('Invalid email or password');
-        return;
-    }
-    
-    if (user.status === 'suspended') {
-        showToast('Your account has been suspended. Please contact support.');
-        return;
-    }
-    
-    // Update last login
-    user.lastLogin = new Date().toISOString();
-    localStorage.setItem('users', JSON.stringify(users));
-    
-    // Set auth state
-    authState.isAuthenticated = true;
-    authState.currentUser = user;
-    localStorage.setItem('currentUser', JSON.stringify(user));
-    
-    // Add notification for admin
-    const notifications = JSON.parse(localStorage.getItem('notifications')) || [];
-    notifications.unshift({
-        message: `User logged in: ${user.name}`,
-        icon: 'fa-sign-in-alt',
-        timestamp: new Date().toISOString(),
-        type: 'user'
-    });
-    localStorage.setItem('notifications', JSON.stringify(notifications));
-    
-    showToast('Login successful!');
-    navigate('profile');
+    navigate('home');
 }
 
 function updateProfile(event) {
@@ -749,4 +729,63 @@ function logout() {
     localStorage.removeItem('currentUser');
     showToast('Logged out successfully');
     navigate('home');
+}
+
+// Update the navigate function
+function navigate(page, data = null) {
+    // Update current page
+    currentPage = page;
+    
+    // Check authentication for protected routes
+    const protectedRoutes = ['profile', 'cart', 'wishlist', 'orders'];
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    
+    if (protectedRoutes.includes(page) && !currentUser) {
+        page = 'login';
+    }
+
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    
+    // Show selected page
+    const pageElement = document.getElementById(`${page}-page`);
+    if (pageElement) {
+        pageElement.style.display = 'block';
+        
+        // Render the page content
+        switch (page) {
+            case 'login':
+                renderLogin();
+                break;
+            case 'signup':
+                renderSignup();
+                break;
+            case 'home':
+                renderHome();
+                break;
+            case 'profile':
+                renderProfile();
+                break;
+            case 'cart':
+                renderCart();
+                break;
+            case 'wishlist':
+                renderWishlist();
+                break;
+            case 'product':
+                renderProductDetail(data);
+                break;
+        }
+    }
+
+    // Update active state in bottom nav
+    document.querySelectorAll('.bottom-nav a').forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('data-page') === page) {
+            link.classList.add('active');
+        }
+    });
+
+    // Scroll to top
+    window.scrollTo(0, 0);
 }
